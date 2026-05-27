@@ -489,9 +489,12 @@ def main():
                         hist = yf.download(f"{symbol}.NS", period="1y", interval="1d", progress=False)
                         if hist.empty:
                             return None
-                        hist = hist.reset_index()
+                        # Flatten multi-index columns first if they exist
                         if isinstance(hist.columns, pd.MultiIndex):
                             hist.columns = [col[0] for col in hist.columns]
+                        hist = hist.reset_index()
+                        # Rename the first column (which is the index/Date) to 'Date'
+                        hist.rename(columns={hist.columns[0]: 'Date'}, inplace=True)
                         hist['SMA_50'] = hist['Close'].rolling(50).mean()
                         hist['SMA_150'] = hist['Close'].rolling(150).mean()
                         hist['SMA_200'] = hist['Close'].rolling(200).mean()
