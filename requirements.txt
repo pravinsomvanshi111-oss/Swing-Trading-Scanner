@@ -1,0 +1,8 @@
+streamlit
+pandas
+yfinance
+beautifulsoup4
+requests
+plotly
+schedule
+openpyxl
