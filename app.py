@@ -374,20 +374,17 @@ def main():
     view_mode = st.radio(
         "View:", [
             "All Universe",
-            "Overall ≥ 90% (Screener Picks)",
-            "Overall ≥ 80%",
-            "Trend Pass Only",
+            "Perfect Match (100% score)",
+            "Almost Match (85% to 99% score)",
         ],
         horizontal=True
     )
 
     mask = pd.Series(True, index=df.index)
-    if view_mode == "Overall ≥ 90% (Screener Picks)":
-        mask = df["overall_score"].notna() & (df["overall_score"] >= 90)
-    elif view_mode == "Overall ≥ 80%":
-        mask = df["overall_score"].notna() & (df["overall_score"] >= 80)
-    elif view_mode == "Trend Pass Only" and has_tech:
-        mask = df["trend_score"] > 0
+    if view_mode == "Perfect Match (100% score)":
+        mask = df["overall_score"].notna() & (df["overall_score"] == 100)
+    elif view_mode == "Almost Match (85% to 99% score)":
+        mask = df["overall_score"].notna() & (df["overall_score"] >= 85) & (df["overall_score"] < 100)
 
     display_filtered = display[mask]
     df_filtered = df[mask]
@@ -402,17 +399,19 @@ def main():
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Stocks Shown", len(display_filtered))
     if has_tech:
-        picks_90 = int(df["overall_score"].ge(90).sum()) if df["overall_score"].notna().any() else 0
-        c2.metric("Overall ≥ 90%", picks_90)
-        c3.metric("Trend Pass", int((df["trend_score"] > 0).sum()))
+        perfect_count = int(df["overall_score"].eq(100).sum()) if df["overall_score"].notna().any() else 0
+        almost_count = int((df["overall_score"].ge(85) & df["overall_score"].lt(100)).sum()) if df["overall_score"].notna().any() else 0
+        c2.metric("Perfect Match (100%)", perfect_count)
+        c3.metric("Almost Match (85-99%)", almost_count)
     else:
-        c2.metric("Technicals", "Not loaded")
-        c3.metric("", "")
-    if has_fund:
-        fund_100 = int((df["fundamental_score"] == 100).sum())
-        c4.metric("Fund 100%", fund_100)
+        c2.metric("Perfect Match", "Not loaded")
+        c3.metric("Almost Match", "Not loaded")
+        
+    if has_tech:
+        trend_pass = int((df["trend_score"] == 100).sum())
+        c4.metric("Trend Pass (100%)", trend_pass)
     else:
-        c4.metric("Fundamentals", "Not loaded")
+        c4.metric("Technicals", "Not loaded")
 
     st.markdown("---")
 
