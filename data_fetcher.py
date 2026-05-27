@@ -234,6 +234,14 @@ def _pct_return(close_series, days):
 
 # ── Fundamental data fetcher (Phase 6) ───────────────────────
 
+# Global requests session for connection pooling and HTTP Keep-Alive
+_session = requests.Session()
+_session.headers.update({
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+})
+
+from bs4 import BeautifulSoup
+
 def clean_float(val_str):
     if not val_str:
         return None
@@ -248,41 +256,45 @@ def _fetch_fundamental_screener(symbol, company_name=None):
     Scrape fundamental data from Screener.in.
     Returns a dict or None on failure.
     """
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-    
     # 1. Resolve URL
     url = f"https://www.screener.in/company/{symbol}/consolidated/"
-    r = requests.get(url, headers=headers, timeout=10)
-    if r.status_code == 404:
-        url = f"https://www.screener.in/company/{symbol}/"
-        r = requests.get(url, headers=headers, timeout=10)
+    try:
+        r = _session.get(url, timeout=5)
+    except Exception:
+        r = None
         
-    if r.status_code == 404:
+    if not r or r.status_code == 404:
+        url = f"https://www.screener.in/company/{symbol}/"
+        try:
+            r = _session.get(url, timeout=5)
+        except Exception:
+            r = None
+        
+    if (not r or r.status_code == 404):
         # Try search API with symbol
         search_url = f"https://www.screener.in/api/company/search/?q={symbol}"
         try:
-            sr = requests.get(search_url, headers=headers, timeout=10)
+            sr = _session.get(search_url, timeout=5)
             if sr.status_code == 200 and sr.json():
                 url = f"https://www.screener.in{sr.json()[0]['url']}"
-                r = requests.get(url, headers=headers, timeout=10)
+                r = _session.get(url, timeout=5)
         except Exception:
             pass
             
-    if r.status_code == 404 and company_name:
+    if (not r or r.status_code == 404) and company_name:
         # Try search API with company name
         search_url = f"https://www.screener.in/api/company/search/?q={company_name}"
         try:
-            sr = requests.get(search_url, headers=headers, timeout=10)
+            sr = _session.get(search_url, timeout=5)
             if sr.status_code == 200 and sr.json():
                 url = f"https://www.screener.in{sr.json()[0]['url']}"
-                r = requests.get(url, headers=headers, timeout=10)
+                r = _session.get(url, timeout=5)
         except Exception:
             pass
             
-    if r.status_code != 200:
+    if not r or r.status_code != 200:
         return None
+
 
     try:
         soup = BeautifulSoup(r.text, 'html.parser')

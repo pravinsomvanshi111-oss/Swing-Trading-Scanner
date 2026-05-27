@@ -109,3 +109,27 @@ def upsert_fundamentals(records):
               r.get('debt_to_equity'), r.get('institutional_holding'), r['last_updated']))
     conn.commit()
     conn.close()
+
+def get_last_update_times():
+    """Retrieve the maximum last_updated timestamp from each table."""
+    conn = get_connection()
+    c = conn.cursor()
+    uni, tech, fund = None, None, None
+    try:
+        c.execute("SELECT MAX(last_updated) FROM stocks_universe")
+        uni = c.fetchone()[0]
+    except Exception:
+        pass
+    try:
+        c.execute("SELECT MAX(last_updated) FROM technicals")
+        tech = c.fetchone()[0]
+    except Exception:
+        pass
+    try:
+        c.execute("SELECT MAX(last_updated) FROM fundamentals")
+        fund = c.fetchone()[0]
+    except Exception:
+        pass
+    conn.close()
+    return uni, tech, fund
+

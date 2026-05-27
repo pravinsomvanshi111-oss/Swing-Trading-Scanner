@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import os
 from datetime import datetime
-from database import get_filtered_universe, init_db
+from database import get_filtered_universe, init_db, get_last_update_times
 
 # Page config
 st.set_page_config(page_title="SwingScreener", layout="wide", initial_sidebar_state="expanded")
@@ -200,7 +200,12 @@ def main():
     # Header
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.write(f"**Last Data Update:** {datetime.now().strftime('%b %d, %Y %I:%M %p')}")
+        uni, tech, fund = get_last_update_times()
+        st.markdown(
+            f"📅 **Universe Updated:** `{uni or 'Never'}` | "
+            f"📈 **Technicals Scanned:** `{tech or 'Never'}` | "
+            f"🔬 **Fundamentals Scanned:** `{fund or 'Never'}`"
+        )
     with col2:
         if st.button("🔄 Refresh Universe", use_container_width=True):
             with st.spinner("Fetching all NSE-listed stocks..."):
