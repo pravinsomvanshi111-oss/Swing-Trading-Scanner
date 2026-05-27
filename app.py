@@ -55,7 +55,7 @@ def compute_trend_score(row):
     passed_count = sum(1 for _, p, _ in checks if p)
     total = len(checks)
     score_pct = (passed_count / total) * 100
-    if passed_count < 4:
+    if passed_count < 5:
         score_pct = 0
 
     return score_pct, passed_count, total, checks
@@ -236,8 +236,8 @@ def main():
             roe_label = st.selectbox("Min ROE", list(roe_opts.keys()), index=1, key="roe")
             roe_val = roe_opts[roe_label]
 
-            de_opts = {"1.0": 1.0, "1.5": 1.5, "2.0": 2.0}
-            de_label = st.selectbox("Max D/E Ratio", list(de_opts.keys()), index=1, key="de")
+            de_opts = {"0.5": 0.5, "1.0": 1.0, "1.5": 1.5, "2.0": 2.0}
+            de_label = st.selectbox("Max D/E Ratio", list(de_opts.keys()), index=2, key="de")
             de_val = de_opts[de_label]
 
             inst_opts = {"5%": 5, "10%": 10, "15%": 15}
