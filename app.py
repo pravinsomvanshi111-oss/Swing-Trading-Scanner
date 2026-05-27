@@ -11,9 +11,9 @@ st.set_page_config(page_title="SwingScreener", layout="wide", initial_sidebar_st
 
 # ── Trend Template scoring ───────────────────────────────────
 
-def compute_trend_score(row, dist_from_52w_pct):
+def compute_trend_score(row):
     """
-    Evaluate the 6-check Trend Template on one stock row.
+    Evaluate the 5-check Trend Template on one stock row.
     Returns (score_pct, checks_passed, total_checks, details_list).
     """
     checks = []
@@ -21,10 +21,9 @@ def compute_trend_score(row, dist_from_52w_pct):
     sma50 = row.get("sma_50")
     sma150 = row.get("sma_150")
     sma200 = row.get("sma_200")
-    w52_high = row.get("week_high_52")
 
     if pd.isna(price) or pd.isna(sma50):
-        return None, 0, 6, []
+        return None, 0, 5, []
 
     if pd.notna(sma150):
         p = price > sma150
@@ -53,17 +52,10 @@ def compute_trend_score(row, dist_from_52w_pct):
     p = price > sma50
     checks.append(("Price > 50 SMA", p, f"₹{price:,.0f} vs ₹{sma50:,.0f}"))
 
-    if pd.notna(w52_high) and w52_high > 0:
-        distance = ((w52_high - price) / w52_high) * 100
-        p = distance <= dist_from_52w_pct
-        checks.append((f"Within {dist_from_52w_pct}% of 52W High", p, f"{distance:.1f}% away"))
-    else:
-        checks.append((f"Within {dist_from_52w_pct}% of 52W High", False, "N/A"))
-
     passed_count = sum(1 for _, p, _ in checks if p)
     total = len(checks)
     score_pct = (passed_count / total) * 100
-    if passed_count < 5:
+    if passed_count < 4:
         score_pct = 0
 
     return score_pct, passed_count, total, checks
@@ -258,10 +250,14 @@ def main():
         }
 
         # Trend Template
-        with st.expander("🔽 Trend Template (5/6 min)"):
-            trend_opts = {"20%": 20, "25%": 25, "30%": 30}
-            trend_label = st.selectbox("Max Distance from 52W High", list(trend_opts.keys()), index=2, key="trend_dist")
-            trend_dist_pct = trend_opts[trend_label]
+        with st.expander("🔽 Trend Template Filters (Active)", expanded=True):
+            st.markdown("All 5 Trend rules are evaluated:")
+            st.markdown("- **Price > 150 SMA**")
+            st.markdown("- **Price > 200 SMA**")
+            st.markdown("- **150 SMA > 200 SMA**")
+            st.markdown("- **50 SMA > 150 SMA**")
+            st.markdown("- **Price > 50 SMA**")
+            st.caption("ℹ️ At least 4/5 rules must pass.")
 
         # Momentum
         with st.expander("🔽 Momentum Filters"):
@@ -322,7 +318,7 @@ def main():
 
     # ── Compute all scores ────────────────────────────────────
     if has_tech:
-        trend_r = df.apply(lambda r: compute_trend_score(r, trend_dist_pct), axis=1)
+        trend_r = df.apply(lambda r: compute_trend_score(r), axis=1)
         df["trend_score"]   = trend_r.apply(lambda x: x[0])
         df["trend_passed"]  = trend_r.apply(lambda x: f"{x[1]}/{x[2]}")
         df["trend_details"] = trend_r.apply(lambda x: x[3])
@@ -467,7 +463,7 @@ def main():
                 st.info("Fundamental data not loaded. Click **🚀 RUN SCREENER** in the sidebar.")
 
         with tab_trend:
-            tscore, tpassed, ttotal, tdetails = compute_trend_score(row, trend_dist_pct)
+            tscore, tpassed, ttotal, tdetails = compute_trend_score(row)
             cd1, cd2 = st.columns([1, 3])
             with cd1:
                 st.metric("Score", f"{tscore:.0f}%" if tscore else "Fail")
