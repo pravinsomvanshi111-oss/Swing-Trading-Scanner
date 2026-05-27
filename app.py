@@ -257,7 +257,7 @@ def main():
             st.markdown("- **150 SMA > 200 SMA**")
             st.markdown("- **50 SMA > 150 SMA**")
             st.markdown("- **Price > 50 SMA**")
-            st.caption("ℹ️ At least 4/5 rules must pass.")
+
 
         # Momentum
         with st.expander("🔽 Momentum Filters"):
