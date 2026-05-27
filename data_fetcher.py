@@ -259,38 +259,16 @@ def _fetch_fundamental_screener(symbol, company_name=None):
     # 1. Resolve URL
     url = f"https://www.screener.in/company/{symbol}/consolidated/"
     try:
-        r = _session.get(url, timeout=5)
+        r = _session.get(url, timeout=3)
     except Exception:
         r = None
         
     if not r or r.status_code == 404:
         url = f"https://www.screener.in/company/{symbol}/"
         try:
-            r = _session.get(url, timeout=5)
+            r = _session.get(url, timeout=3)
         except Exception:
             r = None
-        
-    if (not r or r.status_code == 404):
-        # Try search API with symbol
-        search_url = f"https://www.screener.in/api/company/search/?q={symbol}"
-        try:
-            sr = _session.get(search_url, timeout=5)
-            if sr.status_code == 200 and sr.json():
-                url = f"https://www.screener.in{sr.json()[0]['url']}"
-                r = _session.get(url, timeout=5)
-        except Exception:
-            pass
-            
-    if (not r or r.status_code == 404) and company_name:
-        # Try search API with company name
-        search_url = f"https://www.screener.in/api/company/search/?q={company_name}"
-        try:
-            sr = _session.get(search_url, timeout=5)
-            if sr.status_code == 200 and sr.json():
-                url = f"https://www.screener.in{sr.json()[0]['url']}"
-                r = _session.get(url, timeout=5)
-        except Exception:
-            pass
             
     if not r or r.status_code != 200:
         return None
@@ -458,12 +436,8 @@ def _fetch_fundamental_yfinance(symbol):
         return None
 
 def _fetch_fundamental(symbol, company_name=None):
-    """Primary: Screener.in, Fallback: yfinance"""
-    res = _fetch_fundamental_screener(symbol, company_name)
-    if res:
-        return res
-    # Fallback to yfinance
-    return _fetch_fundamental_yfinance(symbol)
+    """Primary: Screener.in (no yfinance fallback for bulk speed)"""
+    return _fetch_fundamental_screener(symbol, company_name)
 
 def _fetch_fundamental_wrapper(args):
     return _fetch_fundamental(args[0], args[1])
