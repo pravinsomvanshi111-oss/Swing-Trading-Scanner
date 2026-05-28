@@ -278,22 +278,33 @@ def main():
         st.markdown("---")
         st.caption("Scans only stocks within market cap filter")
         if st.button("🚀 RUN SCREENER", type="primary", use_container_width=True):
-            # Get symbols that pass the universe (market cap) filter
-            from database import get_filtered_universe as _gfu
-            _filtered = _gfu(mcap_range[0], mcap_range[1], min_volume, min_price)
-            if _filtered.empty:
-                st.error("No stocks match the universe filters.")
+            # Check if database has stocks
+            from database import get_connection
+            conn = get_connection()
+            c = conn.cursor()
+            c.execute("SELECT count(*) FROM stocks_universe")
+            db_count = c.fetchone()[0]
+            conn.close()
+
+            if db_count == 0:
+                st.error("⚠️ The stock database is empty. Please click '🔄 Refresh Universe' first to download the stock list!")
             else:
-                filtered_syms = _filtered["symbol"].tolist()
-                st.info(f"Scanning {len(filtered_syms)} stocks (MCap ₹{mcap_range[0]:,}–{mcap_range[1]:,} Cr)...")
-                with st.spinner(f"② Fetching technicals for {len(filtered_syms)} stocks..."):
-                    from data_fetcher import update_technicals
-                    update_technicals(symbols=filtered_syms)
-                with st.spinner(f"③ Fetching fundamentals for {len(filtered_syms)} stocks..."):
-                    from data_fetcher import update_fundamentals
-                    update_fundamentals(symbols=filtered_syms)
-                st.success(f"Scan complete for {len(filtered_syms)} stocks!")
-                st.rerun()
+                # Get symbols that pass the universe (market cap) filter
+                from database import get_filtered_universe as _gfu
+                _filtered = _gfu(mcap_range[0], mcap_range[1], min_volume, min_price)
+                if _filtered.empty:
+                    st.error("No stocks match the universe filters. Try adjusting your Market Cap, Volume, or Price filters.")
+                else:
+                    filtered_syms = _filtered["symbol"].tolist()
+                    st.info(f"Scanning {len(filtered_syms)} stocks (MCap ₹{mcap_range[0]:,}–{mcap_range[1]:,} Cr)...")
+                    with st.spinner(f"② Fetching technicals for {len(filtered_syms)} stocks..."):
+                        from data_fetcher import update_technicals
+                        update_technicals(symbols=filtered_syms)
+                    with st.spinner(f"③ Fetching fundamentals for {len(filtered_syms)} stocks..."):
+                        from data_fetcher import update_fundamentals
+                        update_fundamentals(symbols=filtered_syms)
+                    st.success(f"Scan complete for {len(filtered_syms)} stocks!")
+                    st.rerun()
 
     # ── Main Content Area ─────────────────────────────────────
     st.subheader("RESULTS")

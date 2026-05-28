@@ -45,7 +45,8 @@ def fetch_stock_data(symbol):
                 price = fi.get('previousClose', fi.get('previous_close', 0))
 
             # For name and volume, try fast_info first
-            volume = fi.get('lastVolume', fi.get('last_volume', 0))
+            volume = fi.get('threeMonthAverageVolume', fi.get('three_month_average_volume', fi.get('lastVolume', fi.get('last_volume', 0))))
+
             # fast_info doesn't have name, use symbol as placeholder
             name = symbol
 
