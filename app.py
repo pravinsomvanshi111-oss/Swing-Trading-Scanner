@@ -387,6 +387,7 @@ def main():
             "All Universe",
             "Perfect Match (100% score)",
             "Almost Match (85% to 99% score)",
+            "Trend Pass (100%)",
         ],
         horizontal=True
     )
@@ -396,6 +397,8 @@ def main():
         mask = df["overall_score"].notna() & (df["overall_score"] == 100)
     elif view_mode == "Almost Match (85% to 99% score)":
         mask = df["overall_score"].notna() & (df["overall_score"] >= 85) & (df["overall_score"] < 100)
+    elif view_mode == "Trend Pass (100%)":
+        mask = df["trend_score"].notna() & (df["trend_score"] == 100)
 
     display_filtered = display[mask]
     df_filtered = df[mask]
