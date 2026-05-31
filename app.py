@@ -183,6 +183,126 @@ def compute_overall_score(trend_score, momentum_score, fundamental_score):
     )
 
 
+def compute_actionable_score(overall_score, setup_score, accumulation_score=None):
+    """
+    Blend current leader quality with actionable setup and accumulation quality.
+    Existing overall score stays intact; this is used for ranking setups.
+    """
+    if pd.isna(overall_score):
+        return None
+    if pd.isna(setup_score):
+        setup_score = 0
+    if pd.isna(accumulation_score):
+        accumulation_score = 0
+    return round(
+        (overall_score * 0.60) +
+        (setup_score * 0.30) +
+        (accumulation_score * 0.10),
+        1
+    )
+
+
+def compute_setup_details(row):
+    """Human-readable details for VCP, breakout readiness, and RS-line checks."""
+    details = []
+
+    vcp_score = row.get("vcp_score")
+    pullbacks = row.get("vcp_pullbacks")
+    if pd.notna(vcp_score):
+        ok = vcp_score >= 70
+        info = f"{vcp_score:.0f}%"
+        if isinstance(pullbacks, str) and pullbacks:
+            info += f" | pullbacks: {pullbacks}"
+        details.append(("VCP Contraction", ok, info))
+    else:
+        details.append(("VCP Contraction", False, "N/A"))
+
+    dryup = row.get("volume_dryup_score")
+    if pd.notna(dryup):
+        details.append(("Volume Dry-Up", dryup >= 70, f"{dryup:.0f}%"))
+    else:
+        details.append(("Volume Dry-Up", False, "N/A"))
+
+    pivot = row.get("pivot_price")
+    pivot_dist = row.get("pivot_distance_pct")
+    if pd.notna(pivot) and pd.notna(pivot_dist):
+        ok = pivot_dist >= -5
+        details.append(("Pivot Readiness", ok, f"{pivot_dist:.2f}% from pivot (Rs {pivot:,.2f})"))
+    else:
+        details.append(("Pivot Readiness", False, "N/A"))
+
+    vol_mult = row.get("breakout_volume_multiple")
+    if pd.notna(vol_mult):
+        details.append(("Breakout Volume", vol_mult >= 1.5, f"{vol_mult:.2f}x 20-day average"))
+    else:
+        details.append(("Breakout Volume", False, "N/A"))
+
+    rs_new_high = row.get("rs_line_new_high")
+    rs_dist = row.get("rs_line_pct_from_high")
+    if pd.notna(rs_new_high):
+        details.append(("RS Line New High", bool(rs_new_high), f"{rs_dist:.2f}% from 52W RS high" if pd.notna(rs_dist) else "N/A"))
+    else:
+        details.append(("RS Line New High", False, "N/A"))
+
+    atr_score = row.get("atr_squeeze_score")
+    atr_contract = row.get("atr_contraction_pct")
+    if pd.notna(atr_score):
+        details.append(("ATR Squeeze", atr_score >= 70, f"{atr_score:.0f}% | ATR at {atr_contract:.1f}% of baseline" if pd.notna(atr_contract) else f"{atr_score:.0f}%"))
+    else:
+        details.append(("ATR Squeeze", False, "N/A"))
+
+    tight_score = row.get("tight_area_score")
+    tight_range = row.get("tight_range_10d_pct")
+    if pd.notna(tight_score):
+        details.append(("10-Day Tight Area", tight_score >= 70, f"{tight_range:.2f}% range" if pd.notna(tight_range) else f"{tight_score:.0f}%"))
+    else:
+        details.append(("10-Day Tight Area", False, "N/A"))
+
+    return details
+
+
+def compute_accumulation_details(row):
+    """Human-readable institutional accumulation details."""
+    details = []
+
+    score = row.get("accumulation_score")
+    label = row.get("accumulation_labels")
+    details.append((
+        "Accumulation Score",
+        pd.notna(score) and score >= 70,
+        f"{score:.0f}% | {label}" if pd.notna(score) and isinstance(label, str) else "N/A",
+    ))
+
+    inst = row.get("institutional_holding")
+    delta_qoq = row.get("institutional_delta_qoq")
+    delta_2q = row.get("institutional_delta_2q")
+    if pd.notna(inst):
+        delta_txt = []
+        if pd.notna(delta_qoq):
+            delta_txt.append(f"QoQ {delta_qoq:+.2f} pp")
+        if pd.notna(delta_2q):
+            delta_txt.append(f"2Q {delta_2q:+.2f} pp")
+        details.append(("Institutional Holding", pd.notna(delta_qoq) and delta_qoq > 0, f"{inst:.2f}% | {'; '.join(delta_txt) if delta_txt else 'trend N/A'}"))
+    else:
+        details.append(("Institutional Holding", False, "N/A"))
+
+    fii = row.get("fii_holding")
+    fii_delta = row.get("fii_delta_qoq")
+    if pd.notna(fii):
+        details.append(("FII Trend", pd.notna(fii_delta) and fii_delta > 0, f"{fii:.2f}% | QoQ {fii_delta:+.2f} pp" if pd.notna(fii_delta) else f"{fii:.2f}%"))
+    else:
+        details.append(("FII Trend", False, "N/A"))
+
+    dii = row.get("dii_holding")
+    dii_delta = row.get("dii_delta_qoq")
+    if pd.notna(dii):
+        details.append(("DII Trend", pd.notna(dii_delta) and dii_delta > 0, f"{dii:.2f}% | QoQ {dii_delta:+.2f} pp" if pd.notna(dii_delta) else f"{dii:.2f}%"))
+    else:
+        details.append(("DII Trend", False, "N/A"))
+
+    return details
+
+
 # ── Main app ─────────────────────────────────────────────────
 
 def main():
@@ -362,6 +482,18 @@ def main():
     else:
         df["overall_score"] = None
 
+    if has_tech and "setup_score" in df.columns:
+        df["actionable_score"] = df.apply(
+            lambda r: compute_actionable_score(
+                r["overall_score"],
+                r.get("setup_score"),
+                r.get("accumulation_score"),
+            ),
+            axis=1
+        )
+    else:
+        df["actionable_score"] = None
+
     # ── Build display columns ─────────────────────────────────
     display = df[["symbol", "name", "current_price", "market_cap", "avg_volume"]].copy()
     display.columns = ["Symbol", "Name", "Price (₹)", "MCap (Cr)", "Volume"]
@@ -374,12 +506,17 @@ def main():
         return f"{val:.0f}{suffix}"
 
     display["Overall"]     = df["overall_score"].apply(lambda x: fmt_score(x))
+    display["Actionable"]  = df["actionable_score"].apply(lambda x: fmt_score(x))
+    display["Setup"]       = df["setup_score"].apply(lambda x: fmt_score(x)) if "setup_score" in df.columns else "—"
+    display["Accum"]       = df["accumulation_score"].apply(lambda x: fmt_score(x)) if "accumulation_score" in df.columns else "—"
     display["Fundamental"] = df["fundamental_score"].apply(lambda x: fmt_score(x))
     display["Trend"]       = df["trend_score"].apply(
         lambda x: f"{x:.0f}%" if pd.notna(x) and x > 0 else ("Fail" if pd.notna(x) else "—")
     )
     display["Momentum"]    = df["momentum_score"].apply(lambda x: fmt_score(x))
     display["RS"]          = df["rs_rating"].apply(lambda x: f"{x:.0f}" if pd.notna(x) else "—")
+    display["Labels"]      = df["setup_labels"].fillna("—") if "setup_labels" in df.columns else "—"
+    display["Inst Trend"]  = df["accumulation_labels"].fillna("—") if "accumulation_labels" in df.columns else "—"
 
     # ── View filter ───────────────────────────────────────────
     view_mode = st.radio(
@@ -388,6 +525,9 @@ def main():
             "Perfect Match (100% score)",
             "Almost Match (85% to 99% score)",
             "Trend Pass (100%)",
+            "Setup Ready (70%+)",
+            "Accumulation (70%+)",
+            "Tight Area (70%+)",
         ],
         horizontal=True
     )
@@ -399,13 +539,20 @@ def main():
         mask = df["overall_score"].notna() & (df["overall_score"] >= 85) & (df["overall_score"] < 100)
     elif view_mode == "Trend Pass (100%)":
         mask = df["trend_score"].notna() & (df["trend_score"] == 100)
+    elif view_mode == "Setup Ready (70%+)":
+        mask = df["setup_score"].notna() & (df["setup_score"] >= 70)
+    elif view_mode == "Accumulation (70%+)":
+        mask = df["accumulation_score"].notna() & (df["accumulation_score"] >= 70)
+    elif view_mode == "Tight Area (70%+)":
+        mask = df["tight_area_score"].notna() & (df["tight_area_score"] >= 70)
 
     display_filtered = display[mask]
     df_filtered = df[mask]
 
     # Sort by overall score descending where available
     if has_tech:
-        sort_idx = df_filtered["overall_score"].fillna(-1).sort_values(ascending=False).index
+        sort_col = "actionable_score" if "actionable_score" in df_filtered.columns else "overall_score"
+        sort_idx = df_filtered[sort_col].fillna(-1).sort_values(ascending=False).index
         display_filtered = display_filtered.loc[sort_idx]
         df_filtered = df_filtered.loc[sort_idx]
 
@@ -430,8 +577,8 @@ def main():
     st.markdown("---")
 
     # ── Results table ─────────────────────────────────────────
-    cols = ["Symbol", "Name", "Price (₹)", "MCap (Cr)", "Overall",
-            "Fundamental", "Trend", "Momentum", "RS"]
+    cols = ["Symbol", "Name", "Price (₹)", "MCap (Cr)", "Actionable", "Overall",
+            "Setup", "Labels", "Accum", "Inst Trend", "Fundamental", "Trend", "Momentum", "RS"]
     st.dataframe(
         display_filtered[cols],
         use_container_width=True, hide_index=True, height=600,
@@ -447,19 +594,25 @@ def main():
         row = df[df["symbol"] == selected].iloc[0]
 
         # Header metrics
-        hc1, hc2, hc3, hc4, hc5 = st.columns(5)
+        hc1, hc2, hc3, hc4, hc5, hc6 = st.columns(6)
         overall = row.get("overall_score")
         hc1.metric("Overall Score", f"{overall:.0f}%" if pd.notna(overall) else "N/A")
-        hc2.metric("Price", f"₹{row['current_price']:,.2f}")
-        hc3.metric("RS Rating", f"{row['rs_rating']:.0f}" if pd.notna(row['rs_rating']) else "N/A")
-        hc4.metric("MCap", f"₹{row['market_cap']:,.0f} Cr")
-        hc5.metric("Volume", f"{row['avg_volume']:,.0f}")
+        actionable = row.get("actionable_score")
+        hc2.metric("Actionable", f"{actionable:.0f}%" if pd.notna(actionable) else "N/A")
+        setup_score = row.get("setup_score")
+        hc3.metric("Setup", f"{setup_score:.0f}%" if pd.notna(setup_score) else "N/A")
+        accumulation_score = row.get("accumulation_score")
+        hc4.metric("Accumulation", f"{accumulation_score:.0f}%" if pd.notna(accumulation_score) else "N/A")
+        hc5.metric("Price", f"₹{row['current_price']:,.2f}")
+        hc6.metric("RS Rating", f"{row['rs_rating']:.0f}" if pd.notna(row['rs_rating']) else "N/A")
 
         # Tab views
-        tab_fund, tab_trend, tab_mom, tab_chart = st.tabs([
+        tab_fund, tab_trend, tab_mom, tab_setup, tab_accum, tab_chart = st.tabs([
             "Fundamental (30%)", 
             "Trend Template (40%)", 
             "Momentum (30%)",
+            "Setup Quality",
+            "Accumulation",
             "📈 Interactive Chart"
         ])
 
@@ -492,6 +645,30 @@ def main():
                 st.metric("Score", f"{mscore:.0f}%")
             with cd2:
                 for label, ok, info in mdetails:
+                    st.write(f"{'✅' if ok else '❌'} **{label}** — {info}")
+
+        with tab_setup:
+            setup_score = row.get("setup_score")
+            labels = row.get("setup_labels")
+            cd1, cd2 = st.columns([1, 3])
+            with cd1:
+                st.metric("Setup Score", f"{setup_score:.0f}%" if pd.notna(setup_score) else "N/A")
+                if isinstance(labels, str) and labels:
+                    st.caption(labels)
+            with cd2:
+                for label, ok, info in compute_setup_details(row):
+                    st.write(f"{'✅' if ok else '❌'} **{label}** — {info}")
+
+        with tab_accum:
+            accumulation_score = row.get("accumulation_score")
+            labels = row.get("accumulation_labels")
+            cd1, cd2 = st.columns([1, 3])
+            with cd1:
+                st.metric("Accumulation Score", f"{accumulation_score:.0f}%" if pd.notna(accumulation_score) else "N/A")
+                if isinstance(labels, str) and labels:
+                    st.caption(labels)
+            with cd2:
+                for label, ok, info in compute_accumulation_details(row):
                     st.write(f"{'✅' if ok else '❌'} **{label}** — {info}")
 
         with tab_chart:
